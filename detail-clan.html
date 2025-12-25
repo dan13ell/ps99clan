@@ -1,0 +1,997 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PS99 Clan Detail</title>
+    
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&family=Roboto:wght@700;900&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+    
+    <!-- Tailwind, Odometer & Chart.js -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/odometer.js/0.4.7/themes/odometer-theme-minimal.css" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/odometer.js/0.4.7/odometer.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <style>
+        :root {
+            --bg-color: #050507;
+            --card-bg: #0a0a0a;
+            --stroke-grey: #333333;
+            --stroke-purple: #7c3aed;
+            --text-main: #ffffff;
+            --text-muted: #888888;
+            --glow-purple: rgba(124, 58, 237, 0.6);
+            --diff-green: #22c55e;
+        }
+
+        body {
+            font-family: 'Poppins', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            margin: 0;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow-x: hidden;
+        }
+
+        /* --- UPDATE BAR --- */
+        .update-bar-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 4px;
+            background: #111;
+            z-index: 1000;
+        }
+        .update-bar {
+            height: 100%;
+            background: var(--stroke-purple);
+            box-shadow: 0 0 10px var(--stroke-purple);
+            width: 0%;
+            animation: progressSimple 7s linear infinite;
+        }
+        
+        @keyframes progressSimple {
+            0% { width: 0%; }
+            100% { width: 100%; }
+        }
+
+        /* --- BLUR BACKGROUND --- */
+        .blur-wrapper {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: -1;
+            overflow: hidden;
+            pointer-events: none;
+        }
+        .blur-blob {
+            position: absolute;
+            border-radius: 50%;
+            filter: blur(120px);
+            opacity: 0.15;
+        }
+        .blob-1 { background: #7c3aed; width: 600px; height: 600px; top: -200px; left: 50%; transform: translateX(-50%); }
+
+        /* --- BACK BUTTON --- */
+        .nav-area {
+            padding: 20px;
+            position: absolute;
+            top: 10px;
+            left: 0;
+            z-index: 50;
+        }
+        .back-btn {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(0,0,0,0.5);
+            border: 1px solid var(--stroke-grey);
+            padding: 8px 16px;
+            border-radius: 30px;
+            color: var(--text-muted);
+            font-size: 12px;
+            font-weight: 600;
+            transition: all 0.2s;
+            text-decoration: none;
+            backdrop-filter: blur(5px);
+        }
+        .back-btn:hover { border-color: var(--stroke-purple); color: #fff; }
+
+        /* --- MAIN LAYOUT --- */
+        .main-profile {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin-top: 40px; 
+            text-align: center;
+            padding: 0 20px;
+            width: 100%;
+            max-width: 1040px; 
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        .avatar-container {
+            position: relative;
+            width: 130px; 
+            height: 130px;
+            margin-bottom: 20px;
+        }
+
+        .avatar-outer-ring {
+            position: absolute;
+            inset: 0;
+            border-radius: 50%;
+            border: 3px solid var(--stroke-purple);
+            box-shadow: 0 0 25px var(--glow-purple);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .avatar-inner {
+            width: 116px; 
+            height: 116px;
+            border-radius: 50%;
+            border: 3px solid var(--stroke-grey);
+            background: #000;
+            overflow: hidden;
+        }
+
+        .avatar-img { width: 100%; height: 100%; object-fit: cover; }
+
+        .flag-badge {
+            position: absolute;
+            bottom: -20px; 
+            left: 50%;
+            transform: translateX(-50%);
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            background: #111;
+            border: 2px solid var(--stroke-purple);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.8);
+            z-index: 10;
+        }
+        .flag-img { width: 24px; height: auto; border-radius: 2px; }
+
+        .clan-name {
+            font-size: 2.5rem; 
+            font-weight: 900;
+            font-style: italic;
+            text-transform: uppercase;
+            line-height: 1;
+            margin-bottom: 15px;
+            color: #fff;
+            text-shadow: 0 0 20px rgba(124, 58, 237, 0.4);
+        }
+
+        .clan-desc {
+            font-family: 'Space Mono', monospace;
+            font-size: 10px;
+            color: var(--text-muted);
+            max-width: 500px;
+            line-height: 1.4;
+            margin-bottom: 15px;
+            opacity: 0.7;
+        }
+
+        .ranks-row {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 25px;
+            justify-content: center;
+        }
+        .rank-badge {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-family: 'Space Mono', monospace;
+            font-size: 10px;
+            font-weight: 700;
+            color: #888;
+            background: rgba(255,255,255,0.03);
+            border: 1px solid #222;
+            padding: 4px 10px;
+            border-radius: 15px;
+        }
+        .rank-badge span { color: #fff; }
+        .icon-star { color: #ffd700; }
+        .icon-diamond { color: #3b82f6; }
+
+        /* --- BIG POINTS FRAME --- */
+        .points-display {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 20px;
+            width: 100%;
+            max-width: 1000px; 
+            background: rgba(10, 10, 12, 0.6);
+            border: 1px solid var(--stroke-purple);
+            border-radius: 24px;
+            padding: 40px 20px; 
+            box-shadow: 0 10px 50px rgba(0,0,0,0.6), inset 0 0 30px rgba(124, 58, 237, 0.05);
+            backdrop-filter: blur(15px);
+            position: relative;
+            overflow: hidden; 
+        }
+
+        .points-display::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0; height: 1px;
+            background: linear-gradient(90deg, transparent, var(--stroke-purple), transparent);
+            opacity: 0.8;
+        }
+
+        .big-points {
+            font-family: 'Roboto', sans-serif;
+            font-size: clamp(3.5rem, 8vw, 5.8rem); 
+            font-weight: 900;
+            color: #fff;
+            line-height: 1;
+            margin-bottom: 10px;
+            position: relative;
+        }
+        .points-label {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 13px;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 4px;
+            color: var(--stroke-purple);
+        }
+
+        /* --- STATS GRID --- */
+        .stats-grid-row {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 15px;
+            width: 100%;
+            max-width: 1000px;
+            margin-bottom: 15px;
+        }
+        @media (min-width: 768px) { .stats-grid-row { grid-template-columns: repeat(4, 1fr); } }
+
+        /* --- CHART SECTION --- */
+        .chart-wrapper {
+            width: 100%;
+            max-width: 1000px;
+            background: rgba(10, 10, 12, 0.6);
+            border: 1px solid var(--stroke-purple);
+            border-radius: 24px;
+            padding: 20px;
+            margin-bottom: 40px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.4);
+            backdrop-filter: blur(15px);
+            position: relative;
+        }
+        .chart-title {
+            font-size: 10px;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            color: var(--text-muted);
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .chart-container { height: 250px; width: 100%; }
+
+        /* UPDATED STAT CARD STYLES */
+        .small-stat-card {
+            background: rgba(10, 10, 12, 0.8);
+            border: 1px solid #222;
+            border-radius: 16px;
+            padding: 15px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            overflow: hidden;
+            z-index: 1;
+        }
+        .small-stat-card::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: radial-gradient(circle at center, rgba(167, 139, 250, 0.15), transparent 70%);
+            opacity: 0;
+            transition: opacity 0.3s;
+            z-index: -1;
+        }
+        /* Zoom animation directly forward */
+        .small-stat-card:hover {
+            border-color: #a78bfa;
+            transform: scale(1.08);
+            box-shadow: 0 15px 35px rgba(124, 58, 237, 0.2);
+            z-index: 10;
+        }
+        .small-stat-card:hover::after { opacity: 1; }
+
+        .stat-icon-wrapper { margin-bottom: 8px; display: flex; justify-content: center; }
+        .stat-icon-img { width: 28px; height: 28px; object-fit: contain; filter: invert(1); }
+        .stat-title { font-size: 10px; font-weight: 700; text-transform: uppercase; color: var(--text-muted); letter-spacing: 1px; margin-bottom: 4px; }
+        .stat-val { font-family: 'Space Mono', monospace; font-size: 1.2rem; font-weight: 700; color: #fff; white-space: nowrap; }
+        .stat-val-massive { font-size: 1.4rem !important; font-weight: 800; letter-spacing: -1px; }
+
+        /* --- MEMBER LIST --- */
+        .members-wrapper {
+            width: 100%;
+            max-width: 2800px; 
+            margin: 0 auto 30px auto;
+            padding: 0 20px;
+        }
+        .members-title {
+            text-align: left;
+            font-size: 12px;
+            font-weight: 700;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            margin-bottom: 15px;
+            padding-left: 10px;
+            border-left: 3px solid var(--stroke-purple);
+        }
+
+        .members-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 8px;
+        }
+        @media (min-width: 768px) { .members-grid { grid-template-columns: repeat(4, 1fr); } }
+        @media (min-width: 1024px) { .members-grid { grid-template-columns: repeat(5, 1fr); } }
+        @media (min-width: 1440px) { .members-grid { grid-template-columns: repeat(7, 1fr); } }
+
+        .member-clan-card {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: flex-start;
+            position: relative;
+            padding: 8px 10px 8px 48px;
+            height: 72px;
+            width: 100%;
+            overflow: visible;
+            transition: all 0.4s cubic-bezier(0.23, 1, 0.32, 1);
+        }
+        .member-clan-card:hover {
+            background: rgba(124, 58, 237, 0.12);
+            border-color: var(--stroke-purple);
+            transform: scale(1.02);
+            box-shadow: 0 10px 20px rgba(0,0,0,0.4);
+        }
+
+        /* HIGHLIGHT COLOR FOR 2 SECONDS */
+        .member-clan-card.point-added {
+            background: rgba(124, 58, 237, 0.35) !important;
+            border-color: #a78bfa !important;
+            transition: background 0.1s ease, border-color 0.1s ease;
+        }
+
+        .member-corner-rank {
+            position: absolute;
+            top: 50%; left: 10px;
+            transform: translateY(-50%);
+            font-size: 0.8rem;
+            font-weight: 900;
+            color: rgba(255, 255, 255, 0.12);
+            width: 30px;
+            text-align: center;
+        }
+
+        .member-avatar {
+            width: 40px; height: 40px;
+            object-fit: cover;
+            border-radius: 50%; 
+            background: #111;
+            margin-right: 10px;
+            border: 1px solid rgba(255,255,255,0.05);
+        }
+
+        .member-info { display: flex; flex-direction: column; min-width: 0; flex-grow: 1; }
+        .member-header { display: flex; align-items: center; gap: 5px; margin-bottom: 2px; }
+        .member-name {
+            font-weight: 700;
+            font-size: 0.75rem;
+            color: rgba(241, 245, 249, 0.8);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            text-transform: uppercase;
+        }
+        .member-role-badge {
+            font-family: 'Space Mono', monospace;
+            font-size: 8px;
+            font-weight: 800;
+            padding: 1px 4px;
+            border-radius: 4px;
+            background: rgba(255,255,255,0.05);
+            color: #555;
+            flex-shrink: 0;
+            text-transform: uppercase;
+        }
+        .role-owner { color: #ffd700; background: rgba(255, 215, 0, 0.1); }
+        .role-admin { color: #d946ef; background: rgba(217, 70, 239, 0.1); }
+
+        .member-score {
+            font-family: 'Roboto', sans-serif;
+            font-size: 1.25rem;
+            font-weight: 900;
+            color: #fff;
+            line-height: 1;
+            margin-top: 2px;
+        }
+
+        .odometer { font-family: 'Roboto', sans-serif !important; }
+        .member-name-text { transition: color 0.3s ease; }
+    </style>
+</head>
+<body>
+
+    <div class="update-bar-container">
+        <div class="update-bar"></div>
+    </div>
+
+    <div class="blur-wrapper">
+        <div class="blur-blob blob-1"></div>
+    </div>
+
+    <div class="nav-area">
+        <a href="test.html" class="back-btn">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+            BACK
+        </a>
+    </div>
+
+    <div id="loading" class="fixed inset-0 flex items-center justify-center z-50 bg-black/80 backdrop-blur-sm pointer-events-none transition-opacity duration-500">
+        <div class="text-purple-500 font-mono text-xs tracking-widest animate-pulse">LOADING DATA...</div>
+    </div>
+
+    <div id="content" style="opacity: 0; transition: opacity 0.5s;" class="flex flex-col min-h-screen">
+        
+        <div class="main-profile">
+            <div class="avatar-container">
+                <div class="avatar-outer-ring">
+                    <div class="avatar-inner">
+                        <img id="c-icon" src="" class="avatar-img" alt="Icon">
+                    </div>
+                </div>
+                <div class="flag-badge">
+                    <img id="c-flag" src="" class="flag-img" alt="Flag">
+                </div>
+            </div>
+
+            <h1 id="c-name" class="clan-name">--</h1>
+
+            <div class="flex flex-col items-center">
+                <div id="c-desc" class="clan-desc">Loading info...</div>
+                
+                <div class="ranks-row">
+                    <div class="rank-badge">
+                        <span class="icon-star">★</span> Rank: <span id="rank-p">#?</span>
+                    </div>
+                    <div class="rank-badge">
+                        <span class="icon-diamond">💎</span> Rank: <span id="rank-d">#?</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="points-display">
+                <div class="relative">
+                    <div class="big-points odometer" id="val-points">0</div>
+                </div>
+                <div class="points-label">
+                    <span class="text-purple-500">★</span> TOTAL POINTS
+                </div>
+            </div>
+
+            <div class="stats-grid-row">
+                <div class="small-stat-card">
+                    <div class="stat-icon-wrapper">
+                        <img src="https://img.icons8.com/?size=100&id=6nNyVXTubsrF&format=png&color=000000" class="stat-icon-img" alt="Diamonds">
+                    </div>
+                    <div class="stat-title">Diamonds</div>
+                    <div class="stat-val stat-val-massive odometer" id="val-diamonds">0</div>
+                </div>
+                <div class="small-stat-card">
+                    <div class="stat-icon-wrapper">
+                        <img src="https://img.icons8.com/ios-filled/50/000000/medal2.png" class="stat-icon-img" alt="Medals">
+                    </div>
+                    <div class="stat-title mb-2">Medals</div>
+                    <div class="flex gap-4 justify-center items-center h-full pb-2 w-full" id="medal-container">
+                        <span class="text-gray-600 text-xs">-</span>
+                    </div>
+                </div>
+                <div class="small-stat-card">
+                    <div class="stat-icon-wrapper">
+                        <img src="https://img.icons8.com/?size=100&id=34094&format=png&color=000000" class="stat-icon-img" alt="Members">
+                    </div>
+                    <div class="stat-title">Members</div>
+                    <div class="stat-val stat-val-massive" id="val-members">0</div>
+                </div>
+                <div class="small-stat-card">
+                    <div class="stat-icon-wrapper">
+                        <img src="https://img.icons8.com/?size=100&id=Ycn1aN6Jcz7V&format=png&color=000000" class="stat-icon-img" alt="Avg">
+                    </div>
+                    <div class="stat-title">Avg per Member</div>
+                    <div class="stat-val stat-val-massive odometer" id="val-avg">0</div>
+                </div>
+            </div>
+
+            <div class="chart-wrapper">
+                <div class="chart-title">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"></polyline><polyline points="17 6 23 6 23 12"></polyline></svg>
+                    Points History (Sync 7s)
+                </div>
+                <div class="chart-container">
+                    <canvas id="pointsChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <div class="members-wrapper">
+            <div class="members-title">Member List (<span id="m-count">0</span>)</div>
+            <div class="members-grid" id="members-list"></div>
+        </div>
+
+        <footer class="mt-auto py-8 px-4 text-center">
+            <p class="text-[10px] text-gray-500 opacity-50 uppercase tracking-widest font-medium">
+                This is a fan-made project, not affiliated with Big Games or Roblox. Data is for informational purposes only.
+            </p>
+        </footer>
+
+    </div>
+
+    <script>
+        const CLAN_API = 'https://ps99.biggamesapi.io/api/clan/';
+        const BATTLE_API = 'https://ps99.biggamesapi.io/api/activeClanBattle';
+        const IMG_URL = 'https://ps99.biggamesapi.io/image/';
+        
+        let odometers = {}; 
+        let memberOdometers = {};
+        let pointsChart;
+        let currentClan = '';
+        let clanOwnerId = '';
+        let isInitialLoad = true; 
+        
+        let liveState = {
+            points: { current: 0 },
+            diamonds: { current: 0 },
+            avg: { current: 0 },
+            members: {} 
+        };
+
+        let lastChartPoints = 0;
+        let updateTimeouts = [];
+
+        function getParam(p) { return new URLSearchParams(window.location.search).get(p); }
+
+        function formatFloatPoints(num) {
+            if (num >= 1000000) return (num / 1000000).toFixed(1).replace(/\.0$/, '') + 'M';
+            if (num >= 1000) return (num / 1000).toFixed(1).replace(/\.0$/, '') + 'K';
+            return num.toLocaleString();
+        }
+
+        function initChart() {
+            const ctx = document.getElementById('pointsChart').getContext('2d');
+            pointsChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'Total Points',
+                        data: [],
+                        increments: [],
+                        borderColor: '#7c3aed',
+                        backgroundColor: 'rgba(124, 58, 237, 0.1)',
+                        borderWidth: 3,
+                        pointRadius: 5,
+                        pointHoverRadius: 8,
+                        pointBackgroundColor: '#7c3aed',
+                        pointBorderColor: '#fff',
+                        pointBorderWidth: 2,
+                        tension: 0.4,
+                        fill: true
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    animation: { duration: 1000, easing: 'easeOutQuart' },
+                    interaction: { intersect: false, mode: 'index' },
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            backgroundColor: 'rgba(0, 0, 0, 0.9)',
+                            titleFont: { size: 11, family: 'Space Mono', weight: 'bold' },
+                            bodyFont: { size: 13, family: 'Space Mono' },
+                            borderColor: '#7c3aed',
+                            borderWidth: 1,
+                            padding: 12,
+                            displayColors: false,
+                            callbacks: {
+                                label: (context) => {
+                                    const total = context.raw;
+                                    const inc = context.dataset.increments[context.dataIndex];
+                                    return [`Total: ${total.toLocaleString()} pts`, `Gain: +${inc.toLocaleString()} pts` ];
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: { display: true, grid: { display: false }, ticks: { color: '#555', font: { size: 9, family: 'Space Mono' }, maxRotation: 45, minRotation: 45 } },
+                        y: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#555', font: { size: 9, family: 'Space Mono' }, callback: (value) => value >= 1000000 ? (value/1000000).toFixed(1) + 'M' : (value/1000).toFixed(0) + 'K' } }
+                    }
+                }
+            });
+        }
+
+        async function init() {
+            currentClan = getParam('clan');
+            if(!currentClan) {
+                document.getElementById('loading').innerHTML = '<span class="text-red-500">ERROR: No clan selected</span>';
+                return;
+            }
+
+            const pEl = document.getElementById('val-points');
+            const dEl = document.getElementById('val-diamonds');
+            const aEl = document.getElementById('val-avg');
+
+            odometers.points = new Odometer({ el: pEl, value: 0, format: '(,ddd)', theme: 'minimal', duration: 2000 });
+            odometers.diamonds = new Odometer({ el: dEl, value: 0, format: '(,ddd)', theme: 'minimal', duration: 2000 });
+            odometers.avg = new Odometer({ el: aEl, value: 0, format: '(,ddd)', theme: 'minimal', duration: 2000 });
+
+            initChart();
+            await fetchAndRender();
+            setInterval(fetchAndRender, 60000);
+
+            setInterval(() => {
+                if (!isInitialLoad) {
+                    const currentTotal = liveState.points.current;
+                    const increment = currentTotal - lastChartPoints;
+                    addChartPoint(currentTotal, increment);
+                    lastChartPoints = currentTotal;
+                }
+            }, 7000);
+        }
+
+        async function fetchAndRender() {
+            try {
+                updateTimeouts.forEach(t => clearTimeout(t));
+                updateTimeouts = [];
+
+                // 1. Fetch active battle configName from global API
+                const battleReq = await fetch(BATTLE_API);
+                const battleJson = await battleReq.json();
+                const activeWarConfigName = (battleJson.data?.configName || "").trim();
+
+                // 2. Fetch clan data
+                const req = await fetch(CLAN_API + encodeURIComponent(currentClan));
+                if (!req.ok) throw new Error(`HTTP Error: ${req.status}`);
+                const json = await req.json();
+                const data = json.data;
+
+                if (!data) {
+                    document.getElementById('loading').innerHTML = `<span class="text-red-500">ERROR: Clan "${currentClan}" not found.</span>`;
+                    return;
+                }
+
+                clanOwnerId = String(data.Owner); 
+                document.getElementById('c-name').innerText = data.Name;
+                document.getElementById('c-desc').innerText = data.Description || data.Desc || `Official profile of ${data.Name}.`;
+                document.getElementById('c-icon').src = `${IMG_URL}${data.Icon.replace('rbxassetid://', '')}`;
+                document.getElementById('c-flag').src = `https://flagcdn.com/40x30/${(data.CountryCode || 'gb').toLowerCase()}.png`;
+                
+                let activeBattlePointsMap = {}; 
+
+                // 3. Match using configName (BattleID in clan data)
+                if (data.Battles && activeWarConfigName) {
+                    const battleData = data.Battles[activeWarConfigName];
+                    if (battleData && battleData.PointContributions && Array.isArray(battleData.PointContributions)) {
+                        battleData.PointContributions.forEach(entry => {
+                            const uid = String(entry.UserID);
+                            let pts = 0;
+                            if (entry.Points !== null && typeof entry.Points === 'object') {
+                                pts = Object.values(entry.Points).reduce((sum, val) => sum + (Number(val) || 0), 0);
+                            } else {
+                                pts = Number(entry.Points) || 0;
+                            }
+                            activeBattlePointsMap[uid] = pts;
+                        });
+                    }
+                }
+
+                let allMembers = Array.isArray(data.Members) ? [...data.Members] : [];
+                const isOwnerPresent = allMembers.some(m => String(m.UserID) === clanOwnerId);
+                if (!isOwnerPresent && clanOwnerId && clanOwnerId !== "undefined") {
+                    allMembers.push({ UserID: Number(clanOwnerId), PermissionLevel: 100, Joined: 0 });
+                }
+
+                const memberDiffs = {};
+                const membersWithCorrectPoints = allMembers.map(m => {
+                    const userIdStr = String(m.UserID);
+                    const warPoints = activeBattlePointsMap[userIdStr] || 0;
+                    
+                    if (!isInitialLoad && liveState.members[userIdStr]) {
+                        const diff = warPoints - liveState.members[userIdStr].targetValue;
+                        if (diff > 0) memberDiffs[userIdStr] = diff;
+                    }
+
+                    return { ...m, Points: warPoints };
+                });
+
+                const sorted = membersWithCorrectPoints.sort((a,b) => b.Points - a.Points || b.PermissionLevel - a.PermissionLevel);
+                document.getElementById('m-count').innerText = sorted.length;
+
+                const idsToFetch = [];
+                const membersDiv = document.getElementById('members-list');
+
+                sorted.forEach((m, idx) => {
+                    const memberIdStr = String(m.UserID);
+                    let card = document.querySelector(`[data-member-id="${memberIdStr}"]`);
+                    const points = Number(m.Points) || 0;
+
+                    if (!card) {
+                        card = createMemberCard(m, idx + 1, 'https://tr.rbxcdn.com/537d11f9d5045330e633d6b057863777/150/150/Image/Png');
+                        membersDiv.appendChild(card);
+                        const odoEl = card.querySelector('.member-score');
+                        
+                        odoEl.innerHTML = points; 
+                        memberOdometers[memberIdStr] = new Odometer({ el: odoEl, value: points, format: '(,ddd)', theme: 'minimal', duration: 2000 });
+                        liveState.members[memberIdStr] = { current: points, targetValue: points };
+                        idsToFetch.push(m.UserID);
+                    } else {
+                        liveState.members[memberIdStr].targetValue = points;
+                        if (isInitialLoad || liveState.members[memberIdStr].current === 0) {
+                            liveState.members[memberIdStr].current = points;
+                            if (memberOdometers[memberIdStr]) memberOdometers[memberIdStr].update(points);
+                        }
+                        card.querySelector('.member-corner-rank').innerText = `#${idx + 1}`;
+                        card.style.order = idx;
+                    }
+                });
+                
+                if (idsToFetch.length > 0) {
+                    fetchUsernames(idsToFetch);
+                    fetchAvatars(idsToFetch);
+                }
+
+                const pointsListReq = await fetch('https://ps99.biggamesapi.io/api/clans?page=1&pageSize=200&sort=Points&sortOrder=desc');
+                const pointsJson = await pointsListReq.json();
+                const pointsList = pointsJson.data || [];
+                const clanInPointsList = pointsList.find(c => c.Name === data.Name);
+
+                let finalPoints = data.Points || 0; 
+                let rankP = '>200';
+                if (clanInPointsList) {
+                    finalPoints = clanInPointsList.Points;
+                    rankP = `#${pointsList.indexOf(clanInPointsList) + 1}`;
+                }
+                document.getElementById('rank-p').innerText = rankP;
+
+                const membersCount = Array.isArray(data.Members) ? data.Members.length : 1;
+                const avgPoints = membersCount > 0 ? Math.floor(finalPoints / membersCount) : 0;
+                document.getElementById('val-members').innerText = membersCount;
+
+                startMasterSchedule(finalPoints, data.DepositedDiamonds || 0, avgPoints, memberDiffs);
+                
+                const medalContainer = document.getElementById('medal-container');
+                let medalHtml = '';
+                const addMedal = (count, iconUrl, label) => {
+                   if (count > 0) medalHtml += `<div class="flex items-center gap-2" title="${label}"><img src="${iconUrl}" class="w-8 h-8 drop-shadow-md"><span class="font-mono font-bold text-white text-2xl leading-none" style="font-family: 'Space Mono', monospace;">${count}</span></div>`;
+                };
+                addMedal(data.GoldMedals || 0, 'https://db.biggames.io/icon_medal_gold.png?game=ps99', 'Gold');
+                addMedal(data.SilverMedals || 0, 'https://db.biggames.io/icon_medal_emerald_old.png?game=ps99', 'Silver');
+                addMedal(data.BronzeMedals || 0, 'https://db.biggames.io/icon_medal_bronze.png?game=ps99', 'Bronze');
+                medalContainer.innerHTML = medalHtml || '<span class="text-gray-600 text-xs">-</span>';
+
+                findDiamondRank(currentClan);
+                
+                document.getElementById('loading').style.opacity = '0';
+                document.getElementById('content').style.opacity = '1';
+                isInitialLoad = false;
+            } catch (err) { 
+                console.error("[Clan API] Error:", err); 
+                document.getElementById('loading').innerHTML = `<span class="text-red-500">ERROR: Failed to fetch data.</span>`;
+            }
+        }
+
+        async function fetchUsernames(userIds) {
+            const chunks = [];
+            for (let i = 0; i < userIds.length; i += 100) chunks.push(userIds.slice(i, i + 100));
+            for (const chunk of chunks) {
+                try {
+                    const response = await fetch('https://corsproxy.io/?' + encodeURIComponent('https://users.roblox.com/v1/users'), {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+                        body: JSON.stringify({ userIds: chunk, excludeBannedUsers: false })
+                    });
+                    const data = await response.json();
+                    if (data.data) {
+                        data.data.forEach(user => {
+                            const el = document.querySelector(`[data-member-id="${user.id}"] .member-name-text`);
+                            if (el) { el.innerText = user.name; el.style.color = '#fff'; }
+                        });
+                    }
+                } catch (e) { console.warn('Failed to load names:', e); }
+            }
+        }
+
+        async function fetchAvatars(userIds) {
+            const chunks = [];
+            for (let i = 0; i < userIds.length; i += 100) chunks.push(userIds.slice(i, i + 100));
+            for (const chunk of chunks) {
+                try {
+                    const targetUrl = `https://thumbnails.roblox.com/v1/users/avatar-headshot?userIds=${chunk.join(',')}&size=150x150&format=Png&isCircular=false`;
+                    const response = await fetch('https://corsproxy.io/?' + encodeURIComponent(targetUrl));
+                    const data = await response.json();
+                    if (data.data) {
+                        data.data.forEach(item => {
+                            if(item.state === 'Completed' && item.imageUrl) {
+                                const imgEl = document.querySelector(`[data-member-id="${item.targetId}"] .member-avatar`);
+                                if (imgEl) imgEl.src = item.imageUrl;
+                            }
+                        });
+                    }
+                } catch (e) { console.warn('Failed to load avatars:', e); }
+            }
+        }
+
+        function createMemberCard(m, rank, avatarUrl) {
+            const div = document.createElement('div');
+            div.className = 'member-clan-card';
+            div.setAttribute('data-member-id', String(m.UserID));
+            
+            let role = 'Member';
+            let roleClass = '';
+            const uidStr = String(m.UserID);
+
+            if (uidStr === clanOwnerId) { role = 'Leader'; roleClass = 'role-owner'; } 
+            else if (m.PermissionLevel >= 90) { role = 'Officer'; roleClass = 'role-admin'; } 
+            else { role = 'Member'; roleClass = ''; }
+
+            div.innerHTML = `
+                <div class="member-corner-rank">#${rank}</div>
+                <img src="${avatarUrl}" referrerpolicy="no-referrer" class="member-avatar" loading="lazy">
+                <div class="member-info">
+                    <div class="member-header">
+                        <span class="member-role-badge ${roleClass}">${role}</span>
+                        <span class="member-name member-name-text">${m.UserID}</span>
+                    </div>
+                    <div class="member-score odometer">${Number(m.Points) || 0}</div>
+                </div>
+            `;
+            return div;
+        }
+
+        function addChartPoint(total, increment) {
+            if (!pointsChart) return;
+            const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+            pointsChart.data.labels.push(timeStr);
+            pointsChart.data.datasets[0].data.push(total);
+            pointsChart.data.datasets[0].increments.push(increment);
+            if (pointsChart.data.labels.length > 20) {
+                pointsChart.data.labels.shift();
+                pointsChart.data.datasets[0].data.shift();
+                pointsChart.data.datasets[0].increments.shift();
+            }
+            pointsChart.update(); 
+        }
+
+        function startMasterSchedule(targetPoints, targetDiamonds, targetAvg, memberDiffs = {}) {
+            const diffP = targetPoints - liveState.points.current;
+            const diffD = targetDiamonds - liveState.diamonds.current;
+            const diffA = targetAvg - liveState.avg.current;
+
+            if (isInitialLoad) {
+                liveState.points.current = targetPoints;
+                liveState.diamonds.current = targetDiamonds;
+                liveState.avg.current = targetAvg;
+                lastChartPoints = targetPoints;
+                odometers.points.update(targetPoints);
+                odometers.diamonds.update(targetDiamonds);
+                odometers.avg.update(targetAvg);
+                addChartPoint(targetPoints, 0);
+                return;
+            }
+
+            const bursts = 4;
+            let remP = diffP; let remD = diffD; let remA = diffA;
+            const memberRems = { ...memberDiffs };
+
+            const generateWeights = (n) => {
+                let w = Array.from({ length: n }, () => Math.random());
+                let sum = w.reduce((a, b) => a + b, 0);
+                return w.map(v => v / sum);
+            };
+
+            const wP = generateWeights(bursts); 
+            const wD = generateWeights(bursts); 
+            const wA = generateWeights(bursts);
+            
+            const mWeights = {};
+            Object.keys(memberDiffs).forEach(uid => { mWeights[uid] = generateWeights(bursts); });
+
+            let times = [];
+            for (let i = 0; i < bursts; i++) {
+                const quarter = 55000 / bursts;
+                times.push((i * quarter) + (Math.random() * quarter) + 1000);
+            }
+            times.sort((a,b) => a - b);
+
+            times.forEach((time, index) => {
+                const tId = setTimeout(() => {
+                    let addP, addD, addA;
+                    if (index === bursts - 1) { addP = remP; addD = remD; addA = remA; } 
+                    else { addP = Math.floor(diffP * wP[index]); addD = Math.floor(diffD * wD[index]); addA = Math.floor(diffA * wA[index]); remP -= addP; remD -= addD; remA -= addA; }
+
+                    if (addP !== 0 || addA !== 0 || addD !== 0) {
+                        liveState.points.current += addP;
+                        liveState.diamonds.current += addD;
+                        liveState.avg.current += addA;
+                        odometers.points.update(liveState.points.current);
+                        odometers.diamonds.update(liveState.diamonds.current);
+                        odometers.avg.update(liveState.avg.current);
+                    }
+
+                    Object.keys(memberDiffs).forEach(uid => {
+                        let addM;
+                        if (index === bursts - 1) { addM = memberRems[uid]; } 
+                        else { addM = Math.floor(memberDiffs[uid] * mWeights[uid][index]); memberRems[uid] -= addM; }
+                        
+                        if (addM > 0) {
+                            const idStr = String(uid);
+                            if (liveState.members[idStr]) {
+                                liveState.members[idStr].current += addM;
+                                if (memberOdometers[idStr]) memberOdometers[idStr].update(liveState.members[idStr].current);
+                                
+                                const card = document.querySelector(`[data-member-id="${idStr}"]`);
+                                if (card) {
+                                    card.classList.add('point-added');
+                                    setTimeout(() => card.classList.remove('point-added'), 2000);
+                                }
+                            }
+                        }
+                    });
+
+                }, time);
+                updateTimeouts.push(tId);
+            });
+        }
+
+        async function findDiamondRank(myClanName) {
+            try {
+                const reqD = await fetch(`https://ps99.biggamesapi.io/api/clans?pageSize=100&sort=DepositedDiamonds&sortOrder=desc&page=1`);
+                const jsonD = await reqD.json();
+                const listD = jsonD.data || [];
+                const rankD = listD.findIndex(c => c.Name === myClanName) + 1;
+                const el = document.getElementById('rank-d');
+                if (el) el.innerText = rankD > 0 ? `#${rankD}` : '>100';
+            } catch (e) { console.warn("[Diamond Rank] Failed."); }
+        }
+
+        window.onload = init;
+    </script>
+</body>
+</html>
