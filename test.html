@@ -1,0 +1,607 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>PS99 Clans! - Global Tracking</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Odometer CSS & JS -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/odometer.js/0.4.7/themes/odometer-theme-minimal.css" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/odometer.js/0.4.7/odometer.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;800;900&family=Roboto:wght@700;800;900&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Poppins', sans-serif;
+            background-color: #050507;
+            color: #ffffff;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            margin: 0;
+            overflow: hidden;
+        }
+        
+        /* --- SCROLLBAR --- */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: #050507; }
+        ::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.1); border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: rgba(124, 58, 237, 0.5); }
+
+        /* --- GRID SYSTEM --- */
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            column-gap: 7px;
+            row-gap: 6px;
+            padding: 0 10px 5px 10px;
+            flex-grow: 1;
+            position: relative;
+        }
+
+        @media (min-width: 768px) {
+            .dashboard-grid { grid-template-columns: repeat(3, 1fr); }
+        }
+
+        @media (min-width: 1024px) {
+            .dashboard-grid {
+                display: grid;
+                grid-template-columns: repeat(5, 1fr);
+                grid-template-rows: repeat(10, 1fr);
+                grid-auto-flow: column;
+                height: calc(100vh - 120px);
+                column-gap: 8px;
+            }
+            body.is-searching .dashboard-grid, body.is-filtering .dashboard-grid {
+                grid-template-rows: unset;
+                grid-auto-flow: row;
+                height: auto;
+                justify-content: center;
+                display: flex;
+                flex-wrap: wrap;
+                gap: 8px;
+                overflow-y: auto;
+            }
+        }
+
+        /* --- CLAN CARD --- */
+        .clan-card {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: flex-start;
+            position: relative;
+            padding: 4px 8px 4px 48px;
+            cursor: pointer;
+            min-height: 62px;
+            width: 100%;
+            overflow: hidden;
+            translate: 0px 0px;
+            scale: 1;
+            transition: translate 0.8s cubic-bezier(0.25, 1, 0.5, 1), 
+                        scale 0.6s cubic-bezier(0.34, 1.56, 0.64, 1),
+                        box-shadow 0.6s ease-in-out,
+                        background 0.3s ease, 
+                        border-color 0.3s ease;
+            will-change: translate, scale;
+        }
+
+        @media (min-width: 1024px) {
+            .clan-card { padding: 4px 8px 4px 50px; min-height: 64px; }
+        }
+
+        .clan-card.is-rank-1:hover, .clan-card.is-rank-1.updating { border-color: rgba(255, 215, 0, 0.5); background: rgba(255, 215, 0, 0.08); }
+        .clan-card.is-rank-2:hover, .clan-card.is-rank-2.updating { border-color: rgba(192, 192, 192, 0.5); background: rgba(192, 192, 192, 0.08); }
+        .clan-card.is-rank-3:hover, .clan-card.is-rank-3.updating { border-color: rgba(205, 127, 50, 0.5); background: rgba(205, 127, 50, 0.08); }
+
+        .clan-card.lifting { z-index: 100; scale: 1.08; box-shadow: 0 20px 50px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255, 255, 255, 0.3); background: rgba(255, 255, 255, 0.12); }
+        .clan-card.dropping { z-index: 1; scale: 0.95; opacity: 0.6; }
+        .clan-card:hover { background: rgba(124, 58, 237, 0.12); border-color: rgba(124, 58, 237, 0.5); scale: 1.03; z-index: 50; box-shadow: 0 10px 20px rgba(0,0,0,0.4); }
+        .clan-card.updating { background: rgba(124, 58, 237, 0.18); border-color: rgba(167, 139, 250, 0.7); }
+
+        .clan-icon { width: 44px; height: 44px; object-fit: contain; z-index: 2; border-radius: 8px; filter: drop-shadow(0 0 5px rgba(0,0,0,0.5)); margin-right: 12px; flex-shrink: 0; }
+        .info-container { display: flex; flex-direction: column; justify-content: center; overflow: visible; min-width: 0; flex-grow: 1; position: relative; }
+        .clan-header { display: flex; align-items: center; gap: 6px; margin-top: -4px; margin-bottom: 2px; }
+        .country-flag { height: 14px; width: auto; object-fit: contain; }
+        .clan-name { font-weight: 600; font-size: 0.85rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: rgba(241, 245, 249, 0.65); line-height: 1; text-transform: uppercase; letter-spacing: 0.01em; }
+        .clan-points { font-family: 'Roboto', sans-serif; font-size: clamp(1.4rem, 1.8vw, 2.4rem); font-weight: 800; color: #ffffff; letter-spacing: -0.03em; line-height: 1; margin-top: 3px; display: flex; align-items: center; white-space: nowrap; }
+
+        @keyframes colorFlashFialova { 0% { color: #ffffff; } 30% { color: #a78bfa; } 100% { color: #ffffff; } }
+        @keyframes colorFlashZlata { 0% { color: #ffffff; } 30% { color: #ffd700; } 100% { color: #ffffff; } }
+        @keyframes colorFlashStribrna { 0% { color: #ffffff; } 30% { color: #cbd5e1; } 100% { color: #ffffff; } }
+        @keyframes colorFlashBronzova { 0% { color: #ffffff; } 30% { color: #fb923c; } 100% { color: #ffffff; } }
+
+        .points-pop { animation: colorFlashFialova 1.5s ease-out forwards; }
+        .pop-rank-1 { animation: colorFlashZlata 1.5s ease-out forwards; }
+        .pop-rank-2 { animation: colorFlashStribrna 1.5s ease-out forwards; }
+        .pop-rank-3 { animation: colorFlashBronzova 1.5s ease-out forwards; }
+
+        .points-float { font-family: 'Poppins', sans-serif; position: absolute; right: 12px; top: 50%; transform: translateY(-50%); color: #4ade80; font-weight: 900; font-size: clamp(0.9rem, 1.2vw, 1.4rem); pointer-events: none; animation: fadeInOutEffect 3s forwards ease-in-out; opacity: 0; z-index: 30; text-shadow: 2px 2px 0px #000, 1px -1px 0px #000; }
+        @keyframes fadeInOutEffect { 0% { opacity: 0; filter: blur(2px); transform: translateY(-50%) scale(0.8); } 20% { opacity: 1; filter: blur(0); transform: translateY(-50%) scale(1.1); } 80% { opacity: 1; filter: blur(0); transform: translateY(-50%) scale(1.1); } 100% { opacity: 0; filter: blur(2px); transform: translateY(-50%) scale(0.9); } }
+
+        /* --- STATS BUTTON (LUPA) --- */
+        .stats-btn {
+            position: absolute;
+            right: 8px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: rgba(124, 58, 237, 0.8);
+            border-radius: 6px;
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.2s ease;
+            z-index: 40;
+            cursor: pointer;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.4);
+        }
+        .clan-card:hover .stats-btn {
+            opacity: 1;
+            visibility: visible;
+        }
+        .stats-btn:hover {
+            background: #7c3aed;
+            scale: 1.1;
+        }
+        .clan-card.updating .stats-btn {
+            opacity: 0 !important;
+            visibility: hidden !important;
+        }
+
+        .corner-rank { position: absolute; top: 50%; left: 10px; transform: translateY(-50%); font-size: 0.85rem; font-weight: 900; color: rgba(255, 255, 255, 0.1); z-index: 3; width: 32px; text-align: center; }
+        .is-rank-1 .corner-rank { color: #ffd700 !important; opacity: 1 !important; text-shadow: 0 0 10px rgba(255, 215, 0, 0.4); }
+        .is-rank-2 .corner-rank { color: #cbd5e1 !important; opacity: 1 !important; text-shadow: 0 0 10px rgba(203, 213, 225, 0.4); }
+        .is-rank-3 .corner-rank { color: #fb923c !important; opacity: 1 !important; text-shadow: 0 0 10px rgba(251, 146, 60, 0.4); }
+
+        /* --- HEADER --- */
+        header { padding: 8px 20px 4px 20px !important; display: flex; align-items: center; justify-content: space-between; gap: 15px; }
+        .header-logo { height: 46px; width: auto; margin-right: 10px; object-fit: contain; }
+
+        .left-controls { display: flex; align-items: center; gap: 10px; }
+        .right-controls { display: flex; align-items: center; gap: 8px; }
+        .pagination-container { display: flex; flex-direction: row; gap: 5px; }
+
+        .page-btn, .mode-switcher, #status-box, .filter-btn { height: 32px; display: flex; align-items: center; justify-content: center; }
+
+        .filter-btn { background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 8px; padding: 0 12px; cursor: pointer; font-size: 11px; font-weight: 600; position: relative; transition: all 0.2s; white-space: nowrap; }
+        .filter-btn:hover { background: rgba(255,255,255,0.1); }
+        .filter-btn.active { border-color: #a78bfa; color: #a78bfa; }
+
+        .search-container { position: relative; display: flex; align-items: center; }
+        .search-input { background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 8px; padding: 0 12px 0 34px; height: 32px; color: white; font-size: 11px; font-weight: 600; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); outline: none; width: 130px; }
+        .search-input:focus { width: 170px; border-color: #a78bfa; }
+        .search-icon { position: absolute; left: 10px; width: 14px; height: 14px; opacity: 0.4; pointer-events: none; }
+
+        .page-btn { background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); color: rgba(255, 255, 255, 0.6); font-weight: 600; font-size: 11px; padding: 0 10px; border-radius: 8px; cursor: pointer; transition: all 0.2s; white-space: nowrap; }
+        .page-btn.active { background: rgba(124, 58, 237, 0.3); border-color: rgba(139, 92, 246, 0.6); color: #d8b4fe; }
+
+        .mode-switcher { position: relative; background: rgba(0, 0, 0, 0.3); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 8px; padding: 2px; width: 130px; flex-shrink: 0; }
+        .switcher-bg { position: absolute; top: 2px; left: 2px; bottom: 2px; width: calc(50% - 2px); background: rgba(139, 92, 246, 0.8); border-radius: 6px; transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1); z-index: 0; }
+        .mode-switcher[data-active="DepositedDiamonds"] .switcher-bg { transform: translateX(100%); }
+        .switch-btn { flex: 1; position: relative; z-index: 1; font-size: 10px; font-weight: 700; text-transform: uppercase; color: rgba(255, 255, 255, 0.5); background: transparent; border: none; cursor: pointer; }
+        .switch-btn.active { color: white; }
+
+        #status-box { font-family: monospace; font-size: 10px; color: #a78bfa; background: rgba(88, 28, 135, 0.2); border: 1px solid rgba(139, 92, 246, 0.3); padding: 0 10px; border-radius: 999px; min-width: 110px; }
+
+        /* --- BATTLE ELEMENTS --- */
+        .battle-widget-header { display: none; background: rgba(167, 139, 250, 0.1); border: 1px solid rgba(167, 139, 250, 0.3); border-radius: 8px; padding: 0 15px; height: 32px; align-items: center; gap: 10px; box-shadow: 0 0 15px rgba(167, 139, 250, 0.1); }
+        .battle-widget-header.active { display: flex; }
+        
+        .battle-info-box { display: none; align-self: center; background: rgba(167, 139, 250, 0.08); border: 1px solid rgba(167, 139, 250, 0.2); border-radius: 12px; padding: 10px 25px; margin-bottom: 5px; margin-top: 10px; align-items: center; gap: 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.5); animation: battleSlide 0.6s cubic-bezier(0.23, 1, 0.32, 1); }
+        .battle-info-box.active { display: flex; }
+        
+        @keyframes battleSlide { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+
+        .filter-dropdown { position: absolute; top: 38px; left: 0; background: #0f0f15; border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 8px; padding: 10px; z-index: 200; width: 180px; max-height: 300px; overflow-y: auto; display: none; box-shadow: 0 10px 30px rgba(0,0,0,0.5); animation: dropdownSlide 0.2s ease-out; }
+        .filter-dropdown.active { display: block; }
+        @keyframes dropdownSlide { from { opacity: 0; transform: translateY(-5px); } to { opacity: 1; transform: translateY(0); } }
+        .filter-item { padding: 6px 10px; border-radius: 6px; cursor: pointer; font-size: 11px; font-weight: 600; display: flex; align-items: center; gap: 8px; transition: background 0.2s; }
+        .filter-item:hover { background: rgba(255,255,255,0.05); }
+        .filter-item.selected { background: rgba(124, 58, 237, 0.2); color: #a78bfa; }
+    </style>
+</head>
+<body onclick="closeDropdowns()">
+
+    <!-- DASHBOARD -->
+    <div id="main-content" class="flex flex-col h-full w-full">
+        <header class="flex-shrink-0">
+            <div class="left-controls">
+                <div class="flex items-center">
+                    <img src="https://tr.rbxcdn.com/180DAY-7cbfaac69527142ac582cfd634e9a136/420/420/Image/Webp/noFilter" alt="Logo" class="header-logo">
+                    <div class="hidden xl:block mr-4">
+                        <h1 class="text-xl font-black tracking-tighter text-white uppercase italic leading-none">PS99 Clans!</h1>
+                        <p class="text-[9px] text-gray-400 font-bold ml-0.5 tracking-widest uppercase">Live Tracking</p>
+                    </div>
+                </div>
+
+                <div class="search-container" onclick="event.stopPropagation()">
+                    <input type="text" class="search-input" id="clan-search" placeholder="HLEDAT..." oninput="handleGlobalSearch(this.value)">
+                    <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="11" cy="11" r="8"></circle>
+                        <line x1="21" x2="16.65" y1="21" x2="16.65"></line>
+                    </svg>
+                </div>
+                
+                <div class="relative" onclick="event.stopPropagation()">
+                    <button class="filter-btn" id="filter-btn" onclick="toggleFilterDropdown()">ZEMĚ</button>
+                    <div class="filter-dropdown" id="filter-dropdown">
+                        <div id="country-list"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="battle-header" class="battle-widget-header">
+                <span class="text-[10px] font-black text-purple-400 mr-2 uppercase">WAR:</span>
+                <span id="header-battle-title" class="text-xs font-bold text-white uppercase">--</span>
+                <span id="header-battle-timer" class="text-sm font-black text-white ml-4 font-mono">--:--:--</span>
+            </div>
+            
+            <div class="right-controls">
+                <div class="pagination-container" id="pagination">
+                    <button class="page-btn active" data-page="1" onclick="switchPage(1)">1-50</button>
+                    <button class="page-btn" data-page="2" onclick="switchPage(2)">51-100</button>
+                    <button class="page-btn" data-page="3" onclick="switchPage(3)">101-150</button>
+                    <button class="page-btn" data-page="4" onclick="switchPage(4)">151-200</button>
+                </div>
+
+                <div class="mode-switcher" id="sort-switcher" data-active="Points">
+                    <div class="switcher-bg"></div>
+                    <button class="switch-btn active" onclick="changeSort('Points')" id="btn-points">Points</button>
+                    <button class="switch-btn" onclick="changeSort('DepositedDiamonds')" id="btn-diamonds">Diamonds</button>
+                </div>
+
+                <div id="status-box">SYNC: Čekání...</div>
+            </div>
+        </header>
+
+        <div id="main-battle-box" class="battle-info-box">
+            <div class="battle-badge">Aktivní Bitva</div>
+            <div id="main-battle-title" class="battle-main-title">--</div>
+            <div class="flex items-center gap-2">
+                <span class="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Končí za:</span>
+                <div id="main-battle-timer" class="battle-timer-big">--:--:--</div>
+            </div>
+        </div>
+
+        <p class="text-center text-[10px] text-gray-500 mb-1 mt-0 opacity-60 px-4">
+            Body se synchronizují během první minuty po spuštění; neberte to příliš vážně.
+        </p>
+
+        <div id="dashboard" class="dashboard-grid"></div>
+    </div>
+
+    <script>
+        const API_BASE = 'https://ps99.biggamesapi.io/api/clans?pageSize=100&sortOrder=desc';
+        const BATTLE_API = 'https://ps99.biggamesapi.io/api/activeClanBattle';
+        const IMAGE_BASE = 'https://ps99.biggamesapi.io/image/';
+        
+        const odometers = {};
+        const clanData = {}; 
+        const activeTimeouts = []; 
+        const SYNC_WINDOW_MS = 55000; 
+        
+        let allClans = [];
+        let currentSort = 'Points';
+        let currentPage = 1;
+        let searchQuery = '';
+        let countryFilter = '';
+        let lastUpdate = 0;
+        let isInitialLoadDone = false;
+        let battleFinishTime = 0;
+
+        function formatFloatPoints(num) {
+            if (num >= 1000000) return (num / 1000000).toFixed(1).replace(/\.0$/, '') + 'M';
+            if (num >= 1000) return (num / 1000).toFixed(1).replace(/\.0$/, '') + 'K';
+            return num.toLocaleString();
+        }
+
+        function closeDropdowns() {
+            document.getElementById('filter-dropdown').classList.remove('active');
+        }
+
+        function toggleFilterDropdown() {
+            document.getElementById('filter-dropdown').classList.toggle('active');
+        }
+
+        async function fetchBattleData() {
+            try {
+                const res = await fetch(BATTLE_API);
+                const json = await res.json();
+                let battle = json.data || json;
+                if (battle && (battle.Title || battle.FinishTime)) {
+                    const title = (battle.Title || 'CLAN BATTLE').toUpperCase();
+                    battleFinishTime = parseInt(battle.FinishTime);
+                    document.getElementById('header-battle-title').innerText = title;
+                    document.getElementById('main-battle-title').innerText = title;
+                    if (battleFinishTime > 0 && !isNaN(battleFinishTime)) {
+                        document.getElementById('battle-header').classList.add('active');
+                        document.getElementById('main-battle-box').classList.add('active');
+                        updateBattleCountdown();
+                    }
+                }
+            } catch (err) { console.error("Battle API Error:", err); }
+        }
+
+        function updateBattleCountdown() {
+            if (!battleFinishTime || isNaN(battleFinishTime)) return;
+            const now = Math.floor(Date.now() / 1000);
+            const remaining = battleFinishTime - now;
+            const hTimer = document.getElementById('header-battle-timer');
+            const mTimer = document.getElementById('main-battle-timer');
+            if (remaining <= 0) {
+                hTimer.innerText = "KONEC";
+                mTimer.innerText = "BITVA SKONČILA";
+                return;
+            }
+            const days = Math.floor(remaining / (24 * 3600));
+            const hours = Math.floor((remaining % (24 * 3600)) / 3600);
+            const minutes = Math.floor((remaining % 3600) / 60);
+            const seconds = remaining % 60;
+            let timeStr = days > 0 ? `${days}d ` : "";
+            timeStr += `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+            hTimer.innerText = timeStr; mTimer.innerText = timeStr;
+            setTimeout(updateBattleCountdown, 1000);
+        }
+
+        async function fetchApi() {
+            try {
+                const fetchPage = async (page) => {
+                    const res = await fetch(`${API_BASE}&sort=${currentSort}&page=${page}&t=${Date.now()}`);
+                    const json = await res.json();
+                    return json.data || [];
+                };
+                const [p1, p2] = await Promise.all([fetchPage(1), fetchPage(2)]);
+                const combined = [...p1, ...p2];
+                if (combined.length > 0) {
+                    lastUpdate = Date.now();
+                    allClans = combined;
+                    processIncomingData(combined);
+                    isInitialLoadDone = true;
+                }
+            } catch (err) { console.error("API Chyba:", err); }
+        }
+
+        function processIncomingData(clans) {
+            clans.forEach((clan) => {
+                const name = clan.Name;
+                const apiPoints = currentSort === 'Points' ? (clan.Points || 0) : (clan.DepositedDiamonds || 0);
+                if (!clanData[name]) createClanState(clan, apiPoints);
+                else updateExistingClan(name, apiPoints);
+            });
+            renderView();
+            updateCountryList();
+        }
+
+        function createClanState(clan, apiPoints) {
+            const name = clan.Name;
+            const deficit = (currentSort === 'DepositedDiamonds' || isInitialLoadDone) ? 0 : Math.floor(Math.random() * 151);
+            clanData[name] = { 
+                name: name, points: apiPoints - deficit, lastApiValue: apiPoints, rank: 999,
+                countryCode: (clan.CountryCode || 'gb').toLowerCase(),
+                iconId: (clan.Icon || "").replace('rbxassetid://', '').trim()
+            };
+            if (deficit > 0) schedulePointUpdate(name, deficit, SYNC_WINDOW_MS);
+        }
+
+        function updateExistingClan(name, apiPoints) {
+            const data = clanData[name];
+            if (apiPoints > data.lastApiValue) {
+                const jump = apiPoints - data.lastApiValue;
+                data.lastApiValue = apiPoints;
+                schedulePointUpdate(name, jump, SYNC_WINDOW_MS);
+            }
+        }
+
+        function schedulePointUpdate(name, diff, windowMs) {
+            const delay = Math.random() * windowMs;
+            const tUpdate = setTimeout(() => {
+                const data = clanData[name];
+                if (odometers[name] && data) {
+                    data.points += diff;
+                    triggerSatisfyingEffect(name, diff, data.rank);
+                    odometers[name].update(data.points);
+                    setTimeout(renderView, 200); 
+                }
+            }, delay);
+            activeTimeouts.push(tUpdate);
+        }
+
+        function renderView() {
+            const container = document.getElementById('dashboard');
+            const pagination = document.getElementById('pagination');
+            let clansArray = Object.values(clanData).sort((a, b) => b.points - a.points);
+            
+            let filtered = clansArray.filter(c => {
+                const matchName = c.name.toLowerCase().includes(searchQuery);
+                const matchCountry = !countryFilter || c.countryCode === countryFilter.toLowerCase();
+                return matchName && matchCountry;
+            });
+
+            const isFiltering = !!searchQuery || !!countryFilter;
+            pagination.style.opacity = isFiltering ? '0.3' : '1';
+            pagination.style.pointerEvents = isFiltering ? 'none' : 'auto';
+
+            let displayList = isFiltering ? filtered : filtered.slice((currentPage - 1) * 50, currentPage * 50);
+            
+            const cards = Array.from(container.children);
+            const positions = new Map();
+            cards.forEach(card => {
+                const rect = card.getBoundingClientRect();
+                const name = card.getAttribute('data-clan-name');
+                positions.set(name, { left: rect.left, top: rect.top, rank: clanData[name]?.rank || 999 });
+            });
+
+            const currentNamesInView = new Set(displayList.map(c => c.name));
+            cards.forEach(card => {
+                if (!currentNamesInView.has(card.getAttribute('data-clan-name'))) card.remove();
+            });
+
+            displayList.forEach((data, index) => {
+                const simulatedRank = clansArray.findIndex(c => c.name === data.name) + 1;
+                let card = document.querySelector(`[data-clan-name="${data.name}"]`);
+                if (!card) {
+                    card = createCardElement(data, simulatedRank);
+                    container.appendChild(card);
+                    initOdometer(data.name, data.points);
+                } else {
+                    updateCardRank(card, simulatedRank);
+                }
+                card.style.order = index;
+                data.rank = simulatedRank;
+            });
+
+            // FLIP ANIMACE
+            requestAnimationFrame(() => {
+                const newCards = Array.from(container.children);
+                newCards.forEach(card => {
+                    const name = card.getAttribute('data-clan-name');
+                    const first = positions.get(name);
+                    const currentSimRank = clanData[name]?.rank;
+                    if (first && (first.left || first.top)) {
+                        const last = card.getBoundingClientRect();
+                        const deltaX = first.left - last.left;
+                        const deltaY = first.top - last.top;
+                        if (deltaX !== 0 || deltaY !== 0) {
+                            card.classList.remove('lifting', 'dropping');
+                            if (currentSimRank < first.rank) card.classList.add('lifting');
+                            else if (currentSimRank > first.rank) card.classList.add('dropping');
+                            card.style.transition = 'none';
+                            card.style.translate = `${deltaX}px ${deltaY}px`;
+                            void card.offsetWidth;
+                            card.style.transition = 'translate 0.8s cubic-bezier(0.25, 1, 0.5, 1), scale 0.6s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.6s ease-in-out, background 0.3s ease, border-color 0.3s ease';
+                            card.style.translate = '0px 0px';
+                            setTimeout(() => card.classList.remove('lifting', 'dropping'), 800);
+                        }
+                    }
+                });
+            });
+        }
+
+        function createCardElement(data, rank) {
+            const div = document.createElement('div');
+            div.setAttribute('data-clan-name', data.name);
+            div.className = `clan-card is-rank-${rank <= 3 ? rank : 'none'}`;
+            // ZMĚNA: Pouze přesměrování na novou stránku clan-detail.html
+            div.onclick = function() {
+                window.location.href = `clan-detail.html?clan=${encodeURIComponent(data.name)}`;
+            };
+            
+            div.innerHTML = `
+                <div class="corner-rank">#${rank}</div>
+                <img src="${IMAGE_BASE}${data.iconId}" class="clan-icon" onerror="this.src='https://tr.rbxcdn.com/180DAY-7cbfaac69527142ac582cfd634e9a136/420/420/Image/Webp/noFilter'">
+                <div class="info-container">
+                    <div class="clan-header">
+                        <img src="https://flagcdn.com/20x15/${data.countryCode}.png" class="country-flag">
+                        <span class="clan-name">${data.name.toUpperCase()}</span>
+                    </div>
+                    <div class="clan-points odometer">${data.points}</div>
+                </div>
+                <div class="stats-btn">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                </div>
+            `;
+            return div;
+        }
+
+        function initOdometer(name, startPoints) {
+            const el = document.querySelector(`[data-clan-name="${name}"] .odometer`);
+            odometers[name] = new Odometer({ el: el, value: startPoints, format: '(,ddd)', theme: 'minimal', duration: 1000 });
+        }
+
+        function updateCardRank(card, rank) {
+            const rankEl = card.querySelector('.corner-rank');
+            if (rankEl.innerText !== `#${rank}`) rankEl.innerText = `#${rank}`;
+            card.classList.remove('is-rank-1', 'is-rank-2', 'is-rank-3');
+            if (rank <= 3) card.classList.add(`is-rank-${rank}`);
+        }
+
+        function triggerSatisfyingEffect(clanName, difference, rank) {
+            const card = document.querySelector(`[data-clan-name="${clanName}"]`);
+            if (!card) return;
+            card.classList.add('updating');
+            const odoEl = card.querySelector('.odometer');
+            let popClass = rank === 1 ? 'pop-rank-1' : (rank === 2 ? 'pop-rank-2' : (rank === 3 ? 'pop-rank-3' : 'points-pop'));
+            odoEl.classList.add(popClass);
+            const float = document.createElement('div');
+            float.className = 'points-float';
+            float.innerText = `+${formatFloatPoints(difference)}`;
+            card.appendChild(float);
+            setTimeout(() => { card.classList.remove('updating'); odoEl.classList.remove(popClass); float.remove(); }, 3000);
+        }
+
+        function updateCountryList() {
+            const countries = [...new Set(Object.values(clanData).map(c => c.countryCode))].sort();
+            const list = document.getElementById('country-list');
+            if (!list) return;
+            list.innerHTML = `<div class="filter-item ${countryFilter === '' ? 'selected' : ''}" onclick="setCountryFilter('')">VŠECHNY ZEMĚ</div>` +
+                countries.map(code => `<div class="filter-item ${countryFilter === code ? 'selected' : ''}" onclick="setCountryFilter('${code}')"><img src="https://flagcdn.com/20x15/${code}.png" class="w-4"> ${code.toUpperCase()}</div>`).join('');
+        }
+
+        function setCountryFilter(code) {
+            countryFilter = code;
+            const btn = document.getElementById('filter-btn');
+            if (btn) {
+                btn.innerText = code ? code.toUpperCase() : 'ZEMĚ';
+                btn.classList.toggle('active', !!code);
+            }
+            document.body.classList.toggle('is-filtering', !!code); renderView(); closeDropdowns();
+        }
+
+        function handleGlobalSearch(val) {
+            searchQuery = val.toLowerCase().trim();
+            document.body.classList.toggle('is-searching', !!searchQuery); renderView();
+        }
+
+        function switchPage(p) {
+            currentPage = p;
+            document.querySelectorAll('.page-btn').forEach(btn => btn.classList.toggle('active', parseInt(btn.dataset.page) === p));
+            renderView();
+        }
+
+        function changeSort(s) {
+            currentSort = s;
+            document.getElementById('sort-switcher')?.setAttribute('data-active', s);
+            document.getElementById('btn-points')?.classList.toggle('active', s === 'Points');
+            document.getElementById('btn-diamonds')?.classList.toggle('active', s === 'DepositedDiamonds');
+            hardReset();
+        }
+
+        function hardReset() {
+            isInitialLoadDone = false; 
+            activeTimeouts.forEach(t => clearTimeout(t)); 
+            activeTimeouts.length = 0;
+            Object.keys(clanData).forEach(k => delete clanData[k]);
+            Object.keys(odometers).forEach(k => delete odometers[k]);
+            const dash = document.getElementById('dashboard');
+            if (dash) dash.innerHTML = ''; 
+            fetchApi();
+        }
+
+        function updateTimer() {
+            const el = document.getElementById('status-box');
+            if (lastUpdate > 0 && el) el.innerText = `SYNC: ${Math.floor((Date.now() - lastUpdate) / 1000)}s zpět`;
+        }
+
+        window.onload = () => {
+            const queryString = window.location.search || window.location.hash || "";
+            if (queryString.toLowerCase().includes('sortby=diamonds')) {
+                currentSort = 'DepositedDiamonds';
+                const switcher = document.getElementById('sort-switcher');
+                if (switcher) switcher.setAttribute('data-active', 'DepositedDiamonds');
+                document.getElementById('btn-points')?.classList.remove('active');
+                document.getElementById('btn-diamonds')?.classList.add('active');
+            }
+            
+            fetchApi(); 
+            fetchBattleData();
+            setInterval(fetchApi, 15000);
+            setInterval(updateTimer, 1000);
+        };
+    </script>
+</body>
+</html>
